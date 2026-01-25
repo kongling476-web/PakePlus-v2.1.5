@@ -1,32 +1,402 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <link rel="stylesheet" href="styles.css" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PakePlus App</title>
-        <script type="module" src="/main.js" defer></script>
-    </head>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>TCP/IP 全能教学实验室</title>
+    <style>
+        :root { 
+            --bg: #0f172a; 
+            --panel: #1e293b; 
+            --accent: #38bdf8; 
+            --text: #f1f5f9; 
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+        body { 
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; 
+            background: var(--bg); 
+            color: var(--text); 
+            margin: 0; 
+            padding: 10px; 
+            height: 100vh; 
+            box-sizing: border-box; 
+            overflow: hidden; 
+        }
+        
+        .main-grid { 
+            display: grid; 
+            grid-template-columns: 320px 1fr 380px; 
+            gap: 12px; 
+            height: 100%; 
+        }
+        
+        .glass-panel { 
+            background: var(--panel); 
+            border-radius: 10px; 
+            border: 1px solid #334155; 
+            padding: 15px; 
+            display: flex; 
+            flex-direction: column; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2); 
+        }
 
-    <body>
-        <main class="container">
-            <h1>Welcome to PakePlus</h1>
-            <form class="row" id="greet-form">
-                <input id="inputValue" placeholder="Enter a something..." />
-            </form>
-            <div class="resultBox">
-                <span>result: </span>
-                <span id="result"></span>
+        h3 { 
+            margin: 0 0 10px 0; 
+            color: var(--accent); 
+            border-bottom: 2px solid #334155; 
+            padding-bottom: 8px; 
+            font-size: 16px; 
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        /* --- 左侧配置 --- */
+        .config-scroll { overflow-y: auto; flex-grow: 1; padding-right: 5px; }
+        .input-group { margin-bottom: 10px; }
+        label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 4px; font-weight: bold; }
+        input, select { 
+            width: 90%; 
+            background: #020617; 
+            border: 1px solid #475569; 
+            color: white; 
+            padding: 8px; 
+            border-radius: 4px; 
+            font-size: 12px; 
+        }
+        input:focus { border-color: var(--accent); outline: none; }
+        
+        .fw-area { 
+            background: rgba(239, 68, 68, 0.08); 
+            border: 1px dashed var(--danger); 
+            padding: 10px; 
+            border-radius: 6px; 
+            margin-top: 10px; 
+        }
+
+        .btn-stack { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
+        button { 
+            padding: 12px; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            font-size: 14px; 
+            transition: 0.2s; 
+            display: flex; justify-content: center; align-items: center; 
+        }
+        .btn-step { background: #6366f1; color: white; }
+        .btn-go { background: var(--success); color: white; }
+        button:disabled { opacity: 0.4; cursor: not-allowed; filter: grayscale(1); }
+
+        /* --- 中间舞台 --- */
+        .stage { 
+            position: relative; 
+            background: radial-gradient(circle at center, #1e293b 0%, #020617 100%); 
+            border-radius: 10px; 
+            border: 2px solid #334155; 
+            overflow: hidden; 
+        }
+
+        .track-line { position: absolute; top: 75%; left: 10%; width: 80%; height: 2px; background: #334155; z-index: 1; }
+        
+        .node { 
+            position: absolute; top: 75%; transform: translate(-50%, -50%); 
+            display: flex; flex-direction: column; align-items: center; z-index: 2; 
+        }
+        .node-icon { 
+            font-size: 32px; background: #0f172a; border: 2px solid var(--accent); border-radius: 50%; 
+            width: 50px; height: 50px; display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.2); margin-bottom: 6px;
+        }
+        .node span { font-size: 12px; color: #cbd5e1; background: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 4px; }
+
+        /* 数据包样式 */
+        #packet { 
+            position: absolute; left: 15%; top: 10%; 
+            width: 240px; 
+            transform: translateX(-50%); 
+            transition: left 1.2s cubic-bezier(0.25, 1, 0.5, 1), transform 0.5s, opacity 0.5s; 
+            z-index: 10;
+        }
+
+        .layer-item { 
+            background: #334155; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; 
+            margin-bottom: 3px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.4); 
+            animation: slideDown 0.3s ease-out;
+        }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-15px); } to { opacity: 1; transform: translateY(0); } }
+
+        .layer-head { font-size: 13px; font-weight: bold; padding: 6px; text-align: center; color: white; text-shadow: 0 1px 1px rgba(0,0,0,0.5); }
+        .layer-body { 
+            background: rgba(0,0,0,0.25); padding: 8px; font-family: 'Consolas', monospace; 
+            font-size: 11px; color: #e2e8f0; line-height: 1.4; 
+        }
+        .layer-body span { display: block; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+        .payload-core { 
+            background: #f1f5f9; color: #0f172a; padding: 10px; text-align: center; 
+            font-weight: bold; font-size: 14px; border-radius: 4px; border: 2px solid var(--accent);
+        }
+
+        /* --- 右侧详细手册 --- */
+        .manual-container { overflow-y: auto; flex-grow: 1; padding-right: 5px; }
+        .theory-block { 
+            background: #0f172a; margin-bottom: 12px; padding: 12px; 
+            border-radius: 8px; border-left: 4px solid #334155; 
+            transition: all 0.3s; opacity: 0.6; 
+        }
+        .theory-active { 
+            opacity: 1; border-left-color: var(--accent); 
+            background: #1e293b; transform: translateX(5px); 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .theory-block h4 { margin: 0 0 8px 0; font-size: 14px; color: var(--accent); }
+        .theory-tag { 
+            display: inline-block; padding: 2px 6px; border-radius: 4px; 
+            background: rgba(56, 189, 248, 0.15); color: #bae6fd; 
+            font-size: 10px; margin-right: 5px; margin-bottom: 6px; border: 1px solid rgba(56,189,248,0.2);
+        }
+        .theory-content { font-size: 12px; line-height: 1.6; color: #cbd5e1; }
+
+        #log-window { 
+            height: 90px; background: #000; border-radius: 6px; 
+            padding: 8px; font-family: monospace; font-size: 11px; 
+            color: var(--success); overflow-y: auto; margin-top: 10px; 
+        }
+    </style>
+</head>
+<body>
+
+<div class="main-grid">
+    
+    <div class="glass-panel">
+        <h3>配置中心 (Config)</h3>
+        <div class="config-scroll">
+            <div class="input-group">
+                <label>1. 传输数据 (Payload)</label>
+                <input type="text" id="in-data" value="GET /index.html">
             </div>
-            <div class="invokeBox">
-                <button id="openUrl">open_url_browser</button>
-                <button id="openUrlNew">open_url_new</button>
-                <button id="runCommand">run_command</button>
-                <button id="downloadFile">download_file</button>
-                <button id="getExeDir">get_exe_dir</button>
-                <button id="getEnvVar">get_env_var</button>
-                <button id="findPort">find_port</button>
+            <div class="input-group">
+                <label>2. 应用协议 (L5)</label>
+                <select id="in-proto" onchange="autoConfig()">
+                    <option value="HTTP">HTTP (Web 80)</option>
+                    <option value="HTTPS">HTTPS (Sec 443)</option>
+                    <option value="SSH">SSH (Admin 22)</option>
+                    <option value="DNS">DNS (Query 53)</option>
+                    <option value="FTP">FTP (File 21)</option>
+                </select>
             </div>
-        </main>
-    </body>
+            <div class="input-group">
+                <label>3. 目标端口 (Dst Port)</label>
+                <input type="number" id="in-dport" value="80">
+            </div>
+            
+            <div class="input-group">
+                <label>4. 源 IP 地址 (Src IP)</label>
+                <input type="text" id="in-sip" value="192.168.1.10">
+            </div>
+
+            <div class="input-group">
+                <label>5. 目标 IP 地址 (Dst IP)</label>
+                <input type="text" id="in-dip" value="8.8.8.8">
+            </div>
+            
+            <div class="input-group">
+                <label>6. 源 MAC 地址 (Src MAC)</label>
+                <input type="text" id="in-mac" value="A1:B2:C3:D4:E5:F6">
+            </div>
+
+            <div class="input-group">
+                <label>7. 目的 MAC 地址 (Dst MAC)</label>
+                <input type="text" id="in-dmac" value="00:11:22:33:44:55">
+            </div>
+            
+            <div class="fw-area">
+                <label style="color:var(--danger)">🔥 防火墙拦截 (Blacklist)</label>
+                <input type="text" id="fw-list" value="22, 21" placeholder="例如: 22, 21">
+            </div>
+        </div>
+
+        <div class="btn-stack">
+            <button class="btn-step" id="btn-step" onclick="doStep()">⬇️ 执行下一步封装</button>
+            <button class="btn-go" id="btn-go" onclick="startAnim()" disabled>🚀 发送并双向通信</button>
+            <button style="background:#475569; color:white;" onclick="location.reload()">↺ 重置</button>
+        </div>
+    </div>
+
+    <div class="stage">
+        <div class="track-line"></div>
+
+        <div class="node" style="left: 15%;"><div class="node-icon">💻</div><span>主机</span></div>
+        <div class="node" style="left: 40%;"><div class="node-icon">🔥</div><span>防火墙</span></div>
+        <div class="node" style="left: 65%;"><div class="node-icon">♽</div><span>路由器</span></div>
+        <div class="node" style="left: 85%;"><div class="node-icon">🖥️</div><span>服务器</span></div>
+
+        <div id="packet">
+            <div id="packet-stack">
+                <div class="payload-core" id="core-display">Payload</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="glass-panel">
+        <h3>深度原理手册 📖</h3>
+        <div class="manual-container">
+            
+            <div class="theory-block" id="doc-4">
+                <h4>L5. 应用层 (Application)</h4>
+                <div>
+                    <span class="theory-tag">PDU: Message (报文)</span>
+                    <span class="theory-tag">协议: HTTP/DNS/SSH</span>
+                </div>
+                <div class="theory-content">
+                    直接为用户提供网络服务接口。封装时通过协议格式将数据标准化，确定通信意图。
+                </div>
+            </div>
+
+            <div class="theory-block" id="doc-3">
+                <h4>L4. 传输层 (Transport)</h4>
+                <div>
+                    <span class="theory-tag">PDU: Segment (段)</span>
+                    <span class="theory-tag">硬件: 防火墙(查端口)</span>
+                </div>
+                <div class="theory-content">
+                    核心任务是<b>端到端</b>通信。通过<b>端口号</b>区分进程。TCP 提供可靠传输，UDP 提供快速传输。
+                </div>
+            </div>
+
+            <div class="theory-block" id="doc-2">
+                <h4>L3. 网络层 (Network)</h4>
+                <div>
+                    <span class="theory-tag">PDU: Packet (包)</span>
+                    <span class="theory-tag">硬件: 路由器</span>
+                </div>
+                <div class="theory-content">
+                    核心任务是<b>逻辑寻址</b>。IP 协议根据 IP 地址在互联网中寻找路径，包含<b>源 IP</b> 和<b>目的 IP</b>。
+                </div>
+            </div>
+
+            <div class="theory-block" id="doc-1">
+                <h4>L2. 数据链路层 (Data Link)</h4>
+                <div>
+                    <span class="theory-tag">PDU: Frame (帧)</span>
+                    <span class="theory-tag">硬件: 交换机/网卡</span>
+                </div>
+                <div class="theory-content">
+                    核心任务是<b>物理地址寻址</b>。利用 <b>MAC 地址</b> 在局域网内传输数据，包含<b>源 MAC</b> 和<b>目的 MAC</b>。
+                </div>
+            </div>
+
+            <div class="theory-block" id="doc-0">
+                <h4>L1. 物理层 (Physical)</h4>
+                <div>
+                    <span class="theory-tag">数据: Bits (比特流)</span>
+                    <span class="theory-tag">介质: 光纤/双绞线</span>
+                </div>
+                <div class="theory-content">
+                    将逻辑帧转换为原始的<b>比特流 (0101)</b>。定义了电压、接口标准及传输介质物理属性。
+                </div>
+            </div>
+
+        </div>
+        <div id="log-window">> 准备就绪...</div>
+    </div>
+</div>
+
+<script>
+    let step = 0;
+    const layers = [
+        { name: 'PHY 物理层', color: '#64748b' },
+        { name: 'LINK 链路层', color: '#10b981' },
+        { name: 'NET 网络层', color: '#f59e0b' },
+        { name: 'TRANS 传输层', color: '#8b5cf6' },
+        { name: 'APP 应用层', color: '#3b82f6' }
+    ];
+
+    function autoConfig() {
+        const proto = document.getElementById('in-proto').value;
+        const ports = { 'HTTP': 80, 'HTTPS': 443, 'SSH': 22, 'DNS': 53, 'FTP': 21 };
+        document.getElementById('in-dport').value = ports[proto];
+        log(`协议设为 ${proto}，预设端口 ${ports[proto]}`);
+    }
+
+    function doStep() {
+        if (step >= 5) return;
+        const idx = 4 - step; 
+        const config = layers[idx];
+        const stack = document.getElementById('packet-stack');
+
+        let info = "";
+        if(idx === 4) info = `Proto: ${document.getElementById('in-proto').value} | Len: ${document.getElementById('in-data').value.length}`;
+        else if(idx === 3) info = `DstPort: ${document.getElementById('in-dport').value} | SrcPort: 51234`;
+        else if(idx === 2) {
+            const sip = document.getElementById('in-sip').value;
+            const dip = document.getElementById('in-dip').value;
+            info = `SrcIP: ${sip} | DstIP: ${dip}`;
+        }
+        else if(idx === 1) {
+            const sMac = document.getElementById('in-mac').value;
+            const dMac = document.getElementById('in-dmac').value; // 读取自定义目的MAC
+            info = `Src: ${sMac} | Dst: ${dMac}`;
+        }
+        else info = `Bits: 01011101... | Signal: 3.3V`;
+
+        const div = document.createElement('div');
+        div.className = 'layer-item';
+        div.style.background = config.color;
+        div.innerHTML = `<div class="layer-head">${config.name}</div><div class="layer-body"><span>${info.split('|')[0]}</span><span>${info.split('|')[1]||''}</span></div>`;
+        stack.insertBefore(div, stack.firstChild);
+
+        document.querySelectorAll('.theory-block').forEach(b => b.classList.remove('theory-active'));
+        const doc = document.getElementById(`doc-${idx}`);
+        doc.classList.add('theory-active');
+        doc.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        log(`封装完成: ${config.name}`);
+        step++;
+
+        if(step === 5) {
+            document.getElementById('btn-step').disabled = true;
+            document.getElementById('btn-go').disabled = false;
+        }
+    }
+
+    async function startAnim() {
+        const p = document.getElementById('packet');
+        const dport = document.getElementById('in-dport').value;
+        const blockList = document.getElementById('fw-list').value.split(',').map(x=>x.trim());
+
+        log("开始传输 -> 前往防火墙...");
+        p.style.left = "40%";
+        await wait(1500);
+
+        if(blockList.includes(dport)) {
+            log(`[拦截] 端口 ${dport} 命中黑名单！`, 'error');
+            p.style.transform = "translateX(-50%) translateY(100px) scale(0)";
+            p.style.opacity = "0";
+            return;
+        }
+
+        log("防火墙放行。前往路由器...");
+        p.style.left = "65%";
+        await wait(1200);
+
+        log("路由转发 -> 服务器...");
+        p.style.left = "85%";
+        await wait(1200);
+
+        log("服务器处理完毕，发送 ACK...", 'success');
+        document.getElementById('packet-stack').innerHTML = `<div class="payload-core" style="background:#10b981; color:white; border-color:white;">ACK: 200 OK</div>`;
+        p.style.left = "15%"; 
+    }
+
+    function log(msg, type) {
+        const win = document.getElementById('log-window');
+        const color = type==='error'?'#ef4444':(type==='success'?'#10b981':'#38bdf8');
+        win.innerHTML = `<div style="color:${color}">> ${msg}</div>` + win.innerHTML;
+    }
+    function wait(ms) { return new Promise(r=>setTimeout(r,ms)); }
+    
+    document.getElementById('in-data').addEventListener('input', e => document.getElementById('core-display').innerText = e.target.value || "Payload");
+</script>
+</body>
 </html>
